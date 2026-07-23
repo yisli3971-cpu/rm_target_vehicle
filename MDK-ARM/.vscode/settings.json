@@ -1,0 +1,19 @@
+{
+    // ==========================================
+    // 代码补全 & IntelliSense
+    // ==========================================
+    "editor.quickSuggestions": {
+        "other": true,
+        "comments": false,
+        "strings": true
+    },
+    "editor.suggestOnTriggerCharacters": true,
+    "editor.wordBasedSuggestions": "matchingDocuments",
+    "editor.suggest.preview": false,
+    "editor.acceptSuggestionOnEnter": "on",
+
+    // C/C++ 扩展 IntelliSense
+    "C_Cpp.intelliSenseEngine": "default",
+    "C_Cpp.autocomplete": "default",
+    "C_Cpp.enhancedColorization": "enabled"
+}
