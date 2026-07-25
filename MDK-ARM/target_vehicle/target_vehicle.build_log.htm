@@ -22,16 +22,22 @@ Dialog DLL:      TCM.DLL V1.53.0.0
  
 <h2>Project:</h2>
 c:\Users\lzh33\Desktop\target_vehicle\MDK-ARM\target_vehicle.uvprojx
-Project File Date:  07/18/2026
+Project File Date:  07/22/2026
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\yehuo\ARM\ARMCC\Bin'
 Build target 'target_vehicle'
+compiling ZDT_X57_v2motor.c...
 compiling freertos.c...
+../Core/Src/freertos.c(282): warning:  #177-D: variable "zdt_target"  was declared but never referenced
+    static int32_t zdt_target[2] = {0, 0};
+../Core/Src/freertos.c(285): warning:  #550-D: variable "zdt_allow"  was set but never used
+    static uint8_t zdt_allow = 0;
+../Core/Src/freertos.c: 2 warnings, 0 errors
 linking...
-Program Size: Code=41256 RO-data=22436 RW-data=432 ZI-data=20840  
+Program Size: Code=40960 RO-data=22464 RW-data=416 ZI-data=20848  
 FromELF: creating hex file...
-"target_vehicle\target_vehicle.axf" - 0 Error(s), 0 Warning(s).
+"target_vehicle\target_vehicle.axf" - 0 Error(s), 2 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -54,7 +60,7 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE:5.5.0
       Include file:  CMSIS\Core\Include\tz_context.h
-Build Time Elapsed:  00:00:04
+Build Time Elapsed:  00:00:08
 </pre>
 </body>
 </html>

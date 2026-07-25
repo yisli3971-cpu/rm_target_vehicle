@@ -41,3 +41,5 @@ target_vehicle\dma.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h
 target_vehicle\dma.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim_ex.h
 target_vehicle\dma.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h
 target_vehicle\dma.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h
+target_vehicle\dma.o: ../Core/Inc/usart.h
+target_vehicle\dma.o: D:\yehuo\ARM\ARMCC\Bin\..\include\stdio.h

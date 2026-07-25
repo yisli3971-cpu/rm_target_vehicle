@@ -8,6 +8,7 @@
 #include "usart.h"
 extern FDCAN_HandleTypeDef hfdcan1;
 extern volatile ZDT_Motor_State zdt_motor[2];
+extern osMutexId_t key_ZDTHandle;
 
 /* H7 FlashWord 写入要求 32 字节对齐，必须放文件级作用域，
    不能放函数内（armcc 禁止 auto 变量对齐超过 8 字节） */
@@ -144,12 +145,6 @@ void ZDT_ArmorPlate_Move(uint8_t motor_id, int32_t target_pos)
     TxData[4] = 0x6B;                        // 校验码
 
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &Txheader, TxData);
-
-    // 发完命令后轮询位置，让 ISR 及时更新 real_pos
-    for (uint8_t i = 0; i < 3; i++) {
-        ZDT_Request_Position(motor_id);
-        osDelay(5);
-    }
 }
 
 /**
@@ -360,26 +355,51 @@ void ZDT_Request_Homing_Status(uint8_t motor_id)
   */
 void ZDT_Force_Stop_Homing(uint8_t motor_id)
 {
-    uint8_t TxData[3]; 
+    uint8_t TxData[3];
     FDCAN_TxHeaderTypeDef Txheader;
-    
+
     // 1. FDCAN 扩展帧报文头配置
-    Txheader.Identifier = motor_id << 8;         // 地址左移8位进入 ID
-    Txheader.IdType = FDCAN_EXTENDED_ID;         // 必须为扩展帧[cite: 1]
+    Txheader.Identifier = motor_id << 8;
+    Txheader.IdType = FDCAN_EXTENDED_ID;
     Txheader.TxFrameType = FDCAN_DATA_FRAME;
-    Txheader.DataLength = FDCAN_DLC_BYTES_3;     // 有效数据为 3 个字节
+    Txheader.DataLength = FDCAN_DLC_BYTES_3;
     Txheader.FDFormat = FDCAN_CLASSIC_CAN;
     Txheader.BitRateSwitch = FDCAN_BRS_OFF;
     Txheader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
     Txheader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
     Txheader.MessageMarker = 0x00;
 
-    // 2. 组装发送指令 (严格对照说明书: 0x9C + 0x48 + 0x6B)[cite: 1]
-    TxData[0] = 0x9C; // 命令功能码：强制中断并退出回零[cite: 1]
-    TxData[1] = 0x48; // 固定参数[cite: 1]
-    TxData[2] = 0x6B; // 校验字节，按你要求固定为 0x6B
+    TxData[0] = 0x9C;
+    TxData[1] = 0x48;
+    TxData[2] = 0x6B;
 
-    // 3. 推入 FDCAN 发送 FIFO 队列
+    osMutexAcquire(key_ZDTHandle, osWaitForever);
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &Txheader, TxData);
+    osMutexRelease(key_ZDTHandle);
+}
+
+void ZDT_Release_Stall(uint8_t motor_id)
+{
+    uint8_t TxData[4];
+    FDCAN_TxHeaderTypeDef Txheader;
+
+    Txheader.Identifier = motor_id << 8;
+    Txheader.IdType = FDCAN_EXTENDED_ID;
+    Txheader.TxFrameType = FDCAN_DATA_FRAME;
+    Txheader.DataLength = FDCAN_DLC_BYTES_4;
+    Txheader.FDFormat = FDCAN_CLASSIC_CAN;
+    Txheader.BitRateSwitch = FDCAN_BRS_OFF;
+    Txheader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+    Txheader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+    Txheader.MessageMarker = 0x00;
+
+    TxData[0] = 0x0E;
+    TxData[1] = 0x52;
+    TxData[2] = 0x00;
+    TxData[3] = 0x6B;
+
+    osMutexAcquire(key_ZDTHandle, osWaitForever);
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &Txheader, TxData);
+    osMutexRelease(key_ZDTHandle);
 }
 

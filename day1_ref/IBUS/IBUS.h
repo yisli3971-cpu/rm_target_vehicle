@@ -24,21 +24,8 @@ typedef struct
 }Remote_t;
 
 
-/* Remote 在 DMA 中断回调中更新，FreeRTOS 任务中读取，必须 volatile */
 extern volatile Remote_t Remote;
 extern uint8_t DBUS_RX_Buffer[18];
-
-/* 调试用：DMA 帧接收计数器 */
-extern volatile uint32_t dbus_rx_count;
-extern volatile uint32_t dbus_err1_count;
-extern volatile uint32_t dbus_err2_count;
-extern volatile uint32_t dbus_pe_count;
-extern volatile uint32_t dbus_fe_count;
-extern volatile uint32_t dbus_ne_count;
-extern volatile uint32_t dbus_ore_count;
-extern volatile uint32_t dbus_isr_snapshot;
-extern volatile uint32_t dma1_s1_count;
-extern volatile uint32_t dma1_s1_isr;
 
 //IBUS 解析函数（回调函数调用）
 void Remote_DBUS_to_RC(uint8_t *data);

@@ -210,18 +210,7 @@ void TIM1_UP_IRQHandler(void)
 void UART5_IRQHandler(void)
 {
   /* USER CODE BEGIN UART5_IRQn 0 */
-  /* 在 HAL 清零之前捕获 UART5 完整 ISR 寄存器 */
-  extern volatile uint32_t dbus_pe_count;
-  extern volatile uint32_t dbus_fe_count;
-  extern volatile uint32_t dbus_ne_count;
-  extern volatile uint32_t dbus_ore_count;
-  extern volatile uint32_t dbus_isr_snapshot;
-  uint32_t _isr = READ_REG(huart5.Instance->ISR);
-  dbus_isr_snapshot = _isr;
-  if (_isr & USART_ISR_PE)  dbus_pe_count++;
-  if (_isr & USART_ISR_FE)  dbus_fe_count++;
-  if (_isr & USART_ISR_NE)  dbus_ne_count++;
-  if (_isr & USART_ISR_ORE) dbus_ore_count++;
+
   /* USER CODE END UART5_IRQn 0 */
   HAL_UART_IRQHandler(&huart5);
   /* USER CODE BEGIN UART5_IRQn 1 */

@@ -50,9 +50,10 @@ target_vehicle\freertos.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim
 target_vehicle\freertos.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h
 target_vehicle\freertos.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h
 target_vehicle\freertos.o: ../Drivers/CMSIS/RTOS2/Include/cmsis_os2.h
+target_vehicle\freertos.o: D:\yehuo\ARM\ARMCC\Bin\..\include\stdio.h
+target_vehicle\freertos.o: D:\yehuo\ARM\ARMCC\Bin\..\include\string.h
 target_vehicle\freertos.o: ../Core/Inc/drv_damiao6220.h
 target_vehicle\freertos.o: ../Core/Inc/usart.h
-target_vehicle\freertos.o: D:\yehuo\ARM\ARMCC\Bin\..\include\stdio.h
 target_vehicle\freertos.o: ../Core/Inc/fdcan.h
 target_vehicle\freertos.o: ../Core/Inc/6220pid.h
 target_vehicle\freertos.o: ../Core/Inc/ZDT_X57_v2motor.h

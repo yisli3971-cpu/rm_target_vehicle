@@ -247,12 +247,14 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 }
 
 /* USER CODE BEGIN 1 */
+#include <stdio.h>
+
+#pragma import(__use_no_semihosting)
+
 int fputc(int ch, FILE *f)
 {
-    // 将字符通过串口 1 发送出去
     HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
     return ch;
 }
-
 /* USER CODE END 1 */
 
