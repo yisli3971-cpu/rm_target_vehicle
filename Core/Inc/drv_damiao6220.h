@@ -8,7 +8,7 @@
 #define CMD_VEL_MODE 0x200
 
 /* 6220 反馈帧 CAN ID (MST_ID)，调试助手可配，出厂默认 0 */
-#define M6220_MST_ID  0x01
+#define M6220_MST_ID  0x00
 
 #define P_MIN -12.5f   // 位置最小值 (弧度)
 #define P_MAX 12.5f    // 位置最大值 (弧度)

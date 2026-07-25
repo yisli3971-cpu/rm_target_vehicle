@@ -22,6 +22,7 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "usart.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,6 +57,8 @@
 
 /* External variables --------------------------------------------------------*/
 extern FDCAN_HandleTypeDef hfdcan1;
+extern TIM_HandleTypeDef htim6;
+extern UART_HandleTypeDef huart5;
 extern TIM_HandleTypeDef htim1;
 
 /* USER CODE BEGIN EV */
@@ -199,6 +202,45 @@ void TIM1_UP_IRQHandler(void)
   /* USER CODE BEGIN TIM1_UP_IRQn 1 */
 
   /* USER CODE END TIM1_UP_IRQn 1 */
+}
+
+/**
+  * @brief This function handles UART5 global interrupt.
+  */
+void UART5_IRQHandler(void)
+{
+  /* USER CODE BEGIN UART5_IRQn 0 */
+  /* 在 HAL 清零之前捕获 UART5 完整 ISR 寄存器 */
+  extern volatile uint32_t dbus_pe_count;
+  extern volatile uint32_t dbus_fe_count;
+  extern volatile uint32_t dbus_ne_count;
+  extern volatile uint32_t dbus_ore_count;
+  extern volatile uint32_t dbus_isr_snapshot;
+  uint32_t _isr = READ_REG(huart5.Instance->ISR);
+  dbus_isr_snapshot = _isr;
+  if (_isr & USART_ISR_PE)  dbus_pe_count++;
+  if (_isr & USART_ISR_FE)  dbus_fe_count++;
+  if (_isr & USART_ISR_NE)  dbus_ne_count++;
+  if (_isr & USART_ISR_ORE) dbus_ore_count++;
+  /* USER CODE END UART5_IRQn 0 */
+  HAL_UART_IRQHandler(&huart5);
+  /* USER CODE BEGIN UART5_IRQn 1 */
+
+  /* USER CODE END UART5_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM6 global interrupt, DAC1_CH1 and DAC1_CH2 underrun error interrupts.
+  */
+void TIM6_DAC_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM6_DAC_IRQn 0 */
+
+  /* USER CODE END TIM6_DAC_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim6);
+  /* USER CODE BEGIN TIM6_DAC_IRQn 1 */
+
+  /* USER CODE END TIM6_DAC_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

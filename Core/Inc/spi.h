@@ -37,6 +37,8 @@ extern SPI_HandleTypeDef hspi1;
 /* USER CODE BEGIN Private defines */
 extern uint16_t BIG_BALL;
 extern uint16_t SMALL_BALL;
+extern const uint8_t gb_label_small[];  // GB2312 "小弹丸数量："
+extern const uint8_t gb_label_big[];    // GB2312 "大弹丸数量："
 /* USER CODE END Private defines */
 
 void MX_SPI1_Init(void);

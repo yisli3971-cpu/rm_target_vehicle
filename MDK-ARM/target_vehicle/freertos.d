@@ -58,3 +58,6 @@ target_vehicle\freertos.o: ../Core/Inc/6220pid.h
 target_vehicle\freertos.o: ../Core/Inc/ZDT_X57_v2motor.h
 target_vehicle\freertos.o: ../Core/Inc/tim.h
 target_vehicle\freertos.o: ../Core/Inc/spi.h
+target_vehicle\freertos.o: ../day1_ref/Move/Motor.h
+target_vehicle\freertos.o: ../day1_ref/Move/Chassis.h
+target_vehicle\freertos.o: ../day1_ref/IBUS/IBUS.h

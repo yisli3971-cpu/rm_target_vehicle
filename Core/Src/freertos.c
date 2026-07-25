@@ -32,6 +32,9 @@
 #include "ZDT_X57_v2motor.h"
 #include "tim.h"
 #include "spi.h"
+#include "Motor.h"
+#include "Chassis.h"
+#include "IBUS.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,11 +42,15 @@
 extern FDCAN_Motor_MoveState motor_movestate;       // 6220 电机状态（单例）
 volatile ZDT_Motor_State zdt_motor[2];              // ZDT 双电机状态: [0]=电机1, [1]=电机2
 volatile ZDT_Cmd_Msg_t zdt_cmd[2];                   // ZDT 双电机命令接收
+extern volatile uint8_t g_control_tick;              // TIM6 1kHz 控制节拍
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define ABS(x) ((x) < 0 ? -(x) : (x))
+/* 遥控器通道到 6220 云台的映射 */
+#define CH2_POS_SCALE   (P_MAX / 660.0f)    // ch2 → 位置
+#define CH3_VEL_SCALE   (V_MAX / 660.0f)    // ch3 → 速度
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -90,6 +97,13 @@ const osThreadAttr_t ZDT_Control_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+/* Definitions for myTask06_3508 */
+osThreadId_t myTask06_3508Handle;
+const osThreadAttr_t myTask06_3508_attributes = {
+  .name = "myTask06_3508",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* Definitions for motor_can_rx_queue */
 osMessageQueueId_t motor_can_rx_queueHandle;
 const osMessageQueueAttr_t motor_can_rx_queue_attributes = {
@@ -111,6 +125,7 @@ void StartTask02(void *argument);
 void StartTask03(void *argument);
 void StartTask04(void *argument);
 void StartTask05(void *argument);
+void StartTask06(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -163,6 +178,9 @@ void MX_FREERTOS_Init(void) {
   /* creation of ZDT_Control */
   ZDT_ControlHandle = osThreadNew(StartTask05, NULL, &ZDT_Control_attributes);
 
+  /* creation of myTask06_3508 */
+  myTask06_3508Handle = osThreadNew(StartTask06, NULL, &myTask06_3508_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -195,8 +213,7 @@ void StartDefaultTask(void *argument)
 	HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_BUS_OFF, 0);
   uint8_t rx_data[8];
 	osDelay(300);   
-      DRV6220_Enable_Motor(0x01);
-  
+  DRV6220_Enable_Motor(0x01);
 
   /* 3. 收第一帧反馈 → 初始化真实位置 */
   osMessageQueueGet(motor_can_rx_queueHandle, rx_data, NULL, osWaitForever);
@@ -237,21 +254,65 @@ void StartTask02(void *argument)
   /* USER CODE BEGIN StartTask02 */
   /**
    * Task2: MotorSendTask (osPriorityNormal)
-   * 功能: 6220 电机 PID 控制
-   * - motor_ready=1 后开始 PID 运算
-   * - updata_pid() 计算扭矩，DRV6220_Control_Torque 发送
-   * - PID 模式由 set_pid_mode() 决定，扭矩映射自动跟随
+   * 功能: 6220 云台电机 PID + 遥控器控制
+   * - s1=1: 位置模式, ch2 控制位置增量
+   * - s1=2: 速度模式, ch3 直接控速度
+   * - s1=3: 停机, 扭矩=0
    */
-  float t_ff=0;
-  set_pid_mode(PID_MODE_VELOCITY);
+  float t_ff = 0;
+  PID_Mode_t current_mode = PID_MODE_VELOCITY;
+  uint8_t last_s1 = 0;
+
+  set_pid_mode(PID_MODE_VELOCITY);  // 确保默认速度模式
+  HAL_UARTEx_ReceiveToIdle_IT(&huart5, DBUS_RX_Buffer, 18);   // 启动 DBUS
+  osDelay(200);                      // 等首帧 IBUS 数据到达
+
   for(;;)
   {
-     if (!motor_ready) { osDelay(1); continue; }
+    /* 遥控器模式切换: s1=1 位置, s1=2 速度, s1=3 停机 */
+    if (Remote.s1 != last_s1) {
+      last_s1 = Remote.s1;
+      if (Remote.s1 == 1)      { set_pid_mode(PID_MODE_POSITION); current_mode = PID_MODE_POSITION; }
+      else if (Remote.s1 == 2) { set_pid_mode(PID_MODE_VELOCITY); current_mode = PID_MODE_VELOCITY; }
+    }
 
-     osMutexAcquire(key_6220Handle, osWaitForever);
-     t_ff = updata_pid();
-     DRV6220_Control_Torque(0x01, t_ff, get_pid_mode());
-     osMutexRelease(key_6220Handle);
+    /* s2=1: ZDT 全部回零校准 (边沿触发仅一次) */
+    {
+      static uint8_t last_s2 = 0;
+      if (Remote.s2 == 1 && last_s2 != 1) {
+        zdt_motor[0].calibration = 1;
+        zdt_motor[1].calibration = 1;
+      }
+      last_s2 = Remote.s2;
+    }
+
+    if (Remote.s1 == 3) {
+      t_ff = 0.0f;   // 停机: 扭矩清零
+    } else {
+      if (current_mode == PID_MODE_POSITION) {
+        /* 增量式位置: ch2 控制位置变化速率, 摇杆归零停在原位 */
+        static float accum_pos = 0.0f;
+        static uint8_t pos_inited = 0;
+        if (!pos_inited) { accum_pos = motor_movestate.gimbal_pos; pos_inited = 1; }
+        float rate = (float)Remote.ch2 * 0.000009f;
+        if (rate > -0.0003f && rate < 0.0003f) rate = 0.0f;  // 死区
+        accum_pos += rate;
+        if (accum_pos > P_MAX)  accum_pos = P_MAX;
+        if (accum_pos < P_MIN)  accum_pos = P_MIN;
+        set_position(accum_pos);
+      } else {
+        /* 速度模式: ch3 → 目标速度 */
+        float vel = (float)Remote.ch3 * CH3_VEL_SCALE;
+        if (vel > -1.0f && vel < 1.0f) vel = 0.0f;  // 死区
+        set_velocity(vel);
+      }
+
+      osMutexAcquire(key_6220Handle, osWaitForever);
+      t_ff = motor_ready ? update_pid() : 0.0f;
+      osMutexRelease(key_6220Handle);
+    }
+
+    DRV6220_Control_Torque(0x01, t_ff, current_mode);
     osDelay(1);
   }
   /* USER CODE END StartTask02 */
@@ -334,41 +395,36 @@ void StartTask04(void *argument)
   /**
    * Task4: Flash_Save_Task (osPriorityBelowNormal)
    * 功能: ZDT 位置查询 + Flash 存储 + LCD 击打数刷新
-   * - 独立查询两个电机的实时位置 (0x36)
-   * - 任一电机位移 ≥ 3600 脉冲 (一圈) → 写入 Flash (双电机同时保存)
+   * - 查询两个电机的实时位置 (0x36)
+   * - 位移 ≥ 3600 脉冲 (一圈) → 写入 Flash
    * - ZDT 查询和 LCD 刷新间隔 1s，避免 SPI 冲突
    * - LCD 每周期刷新一次击打数
    */
   /* Infinite loop */
-  int32_t last_pos[2];
+ int32_t last_pos[2];
   last_pos[0] = Read_Pos_From_Flash(1);
   last_pos[1] = Read_Pos_From_Flash(2);
-
   for(;;)
   {
-      /* ---- 查询 1号电机位置 ---- */
-      ZDT_Request_Position(1);
-      osDelay(5);
+        ZDT_Request_Position(1);
+        osDelay(5);
+        ZDT_Request_Position(2);
+        osDelay(5);
 
-      /* ---- 查询 2号电机位置 ---- */
-      ZDT_Request_Position(2);
-      osDelay(5);
+        int32_t diff1 = ABS(zdt_motor[0].real_pos - last_pos[0]);
+        int32_t diff2 = ABS(zdt_motor[1].real_pos - last_pos[1]);
 
-      /* ---- 独立判断位移，任一超阈值则双电机保存 ---- */
-      int32_t diff1 = ABS(zdt_motor[0].real_pos - last_pos[0]);
-      int32_t diff2 = ABS(zdt_motor[1].real_pos - last_pos[1]);
+        if (diff1 >= 3600 || diff2 >= 3600)
+        {
+            Save_Both_Motors_To_Flash(zdt_motor[0].real_pos, zdt_motor[1].real_pos);
+            last_pos[0] = zdt_motor[0].real_pos;
+            last_pos[1] = zdt_motor[1].real_pos;
+        }
 
-      if (diff1 >= 3600 || diff2 >= 3600)
-      {
-          Save_Both_Motors_To_Flash(zdt_motor[0].real_pos, zdt_motor[1].real_pos);
-          last_pos[0] = zdt_motor[0].real_pos;
-          last_pos[1] = zdt_motor[1].real_pos;
-      }
-
-      /* ---- LCD 刷新 (与 ZDT 查询隔开，避免 SPI 冲突) ---- */
-      osDelay(1000);
-      LCD_DisplayUpdate();
-      osDelay(70000);
+        // ZDT 查询和 LCD 刷新隔开
+        osDelay(1000);
+        LCD_DisplayUpdate();
+    osDelay(10000);  // LCD 刷新间隔 10s
   }
   /* USER CODE END StartTask04 */
 }
@@ -435,6 +491,50 @@ void StartTask05(void *argument)
       osDelay(10);
   }
   /* USER CODE END StartTask05 */
+}
+
+/* USER CODE BEGIN Header_StartTask06 */
+/**
+* @brief Function implementing the myTask06_3508 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask06 */
+void StartTask06(void *argument)
+{
+  /* USER CODE BEGIN StartTask06 */
+  /**
+   * Task6: myTask06_3508 (osPriorityNormal)
+   * 功能: M3508 底盘电机遥控控制
+   * - 轮询 g_control_tick (TIM6 1kHz 节拍)
+   * - 每拍读取 IBUS 遥控器 → 差速运动学 → 更新目标转速
+   * - Motor_Control() 由 TIM6 ISR 直接调用 (PID + CAN 发送)
+   */
+  Motor_SetMode(MOTOR_MODE_SPEED);
+
+  uint8_t last_tick = 0;
+
+  for(;;)
+  {
+    if (g_control_tick == last_tick) {
+      osDelay(1);
+      continue;
+    }
+    last_tick = g_control_tick;
+
+    /* s2=1: ZDT 校准模式，暂停 3508 底盘控制 */
+    if (Remote.s2 != 1) {
+      float vx = (float)Remote.ch1 / 660.0f;
+      float vR = (float)Remote.ch0 / 660.0f;
+      float lf_rpm, rf_rpm;
+      Chassis_Movement(vx, vR, &lf_rpm, &rf_rpm);
+      Motor_SetTargetRPM_LF((int32_t)lf_rpm);
+      Motor_SetTargetRPM_RF((int32_t)rf_rpm);
+    }
+
+    osDelay(1);
+  }
+  /* USER CODE END StartTask06 */
 }
 
 /* Private application code --------------------------------------------------*/

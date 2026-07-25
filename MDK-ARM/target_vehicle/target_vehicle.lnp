@@ -51,6 +51,11 @@
 "target_vehicle\cmsis_os2.o"
 "target_vehicle\heap_4.o"
 "target_vehicle\port.o"
+"target_vehicle\chassis.o"
+"target_vehicle\motor.o"
+"target_vehicle\pid.o"
+"target_vehicle\ibus.o"
+"target_vehicle\debug_tools.o"
 --library_type=microlib --strict --scatter "target_vehicle\target_vehicle.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

@@ -59,3 +59,4 @@ target_vehicle\fdcan.o: D:\yehuo\ARM\ARMCC\Bin\..\include\stdio.h
 target_vehicle\fdcan.o: ../Core/Inc/6220pid.h
 target_vehicle\fdcan.o: ../Core/Inc/tim.h
 target_vehicle\fdcan.o: ../Core/Inc/spi.h
+target_vehicle\fdcan.o: ../day1_ref/Move/Motor.h

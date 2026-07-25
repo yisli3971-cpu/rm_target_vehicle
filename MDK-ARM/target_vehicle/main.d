@@ -58,3 +58,7 @@ target_vehicle\main.o: ../Core/Inc/drv_damiao6220.h
 target_vehicle\main.o: ../Core/Inc/6220pid.h
 target_vehicle\main.o: ../Core/Inc/lcd.h
 target_vehicle\main.o: ../Core/Inc/pic.h
+target_vehicle\main.o: ../day1_ref/Move/Motor.h
+target_vehicle\main.o: ../day1_ref/Move/Chassis.h
+target_vehicle\main.o: ../day1_ref/IBUS/IBUS.h
+target_vehicle\main.o: ../day1_ref/DebugTools/debug_tools.h

@@ -25,10 +25,20 @@
 #include <stdio.h>
 #include "cmsis_os2.h"
 
+extern const unsigned char gImage_pic[];
+
 uint16_t BIG_BALL = 0;
 uint16_t SMALL_BALL = 0;
 char display_buf1[6];
 char display_buf2[6];
+
+/* GB2312 编码的 "小弹丸数量：" 和 "大弹丸数量："（绕过源文件编码问题） */
+const uint8_t gb_label_small[] = {
+    0xD0,0xA1, 0xB5,0xAF, 0xCD,0xDE, 0xCA,0xFD, 0xC1,0xBF, 0xA3,0xBA, 0x00
+};
+const uint8_t gb_label_big[] = {
+    0xB4,0xF3, 0xB5,0xAF, 0xCD,0xDE, 0xCA,0xFD, 0xC1,0xBF, 0xA3,0xBA, 0x00
+};
 /* USER CODE END 0 */
 
 SPI_HandleTypeDef hspi1;
@@ -152,15 +162,18 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* spiHandle)
 
 /* USER CODE BEGIN 1 */
 
-// 刷新LCD击打数显示，只允许在 Task 上下文调用（内部有 osDelay）
+// 刷新LCD中文标签和击打数
 void LCD_DisplayUpdate(void)
 {
+	osDelay(2);  // 等 LCD 控制器就绪
+
+	LCD_ShowChinese(10, 100, (uint8_t *)gb_label_small, WHITE, BLACK, 24, 0);
 	sprintf(display_buf1, "%d", BIG_BALL);
-	sprintf(display_buf2, "%d", SMALL_BALL);
 	LCD_ShowString(180, 100, (uint8_t *)display_buf1, BRRED, BLACK, 24, 0);
-	osDelay(5);
+
+	LCD_ShowChinese(10, 150, (uint8_t *)gb_label_big, WHITE, BLACK, 24, 0);
+	sprintf(display_buf2, "%d", SMALL_BALL);
 	LCD_ShowString(180, 150, (uint8_t *)display_buf2, BRRED, BLACK, 24, 0);
-	osDelay(5);
 }
 
 /* USER CODE END 1 */

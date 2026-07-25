@@ -31,6 +31,10 @@
 #include "drv_damiao6220.h"
 #include "lcd.h"
 #include "pic.h"
+#include "Motor.h"
+#include "Chassis.h"
+#include "IBUS.h"
+#include "debug_tools.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,7 +44,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define ABS(x) ((x) < 0 ? -(x) : (x))
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,6 +59,9 @@
 
 //FDCAN_TxHeaderTypeDef Txheader;//放置位置还需要考虑，现在放在main里面,(现在放在fdcan宏定义里面)
 FDCAN_RxHeaderTypeDef RxHeader;
+volatile DJMotor_Feedback Lf_data;
+volatile DJMotor_Feedback Rf_data;
+volatile uint8_t g_control_tick;       // TIM6 1kHz 控制节拍
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -102,6 +109,8 @@ int main(void)
   MX_FDCAN1_Init();
   MX_USART1_UART_Init();
   MX_SPI1_Init();
+  MX_TIM6_Init();
+  MX_UART5_Init();
   /* USER CODE BEGIN 2 */
 
   
@@ -122,36 +131,33 @@ int main(void)
 	HAL_FDCAN_ConfigFilter(&hfdcan1,&fdcan_filter); 		 				  //接收ID2
 	//拒绝接收匹配不成功的标准ID和扩展ID,不接受远程帧
 
-		/* 过滤器 0: 扩展帧 -- 精确匹配电机 1 (CAN ID = 0x0100) */
+		/* 过滤器 0: 扩展帧 -- 全部放行 (ZDT 步进电机) */
 		fdcan_filter.IdType = FDCAN_EXTENDED_ID;
 		fdcan_filter.FilterIndex = 0;
 		fdcan_filter.FilterType = FDCAN_FILTER_MASK;
 		fdcan_filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-		fdcan_filter.FilterID1 = 0x0100;
-		fdcan_filter.FilterID2 = 0x1FFFFFFF;  // 29位全部参与匹配
-		HAL_FDCAN_ConfigFilter(&hfdcan1, &fdcan_filter);
-
-		/* 过滤器 1: 扩展帧 -- 精确匹配电机 2 (CAN ID = 0x0200) */
-		fdcan_filter.IdType = FDCAN_EXTENDED_ID;
-		fdcan_filter.FilterIndex = 1;
-		fdcan_filter.FilterType = FDCAN_FILTER_MASK;
-		fdcan_filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-		fdcan_filter.FilterID1 = 0x0200;
-		fdcan_filter.FilterID2 = 0x1FFFFFFF;
+		fdcan_filter.FilterID1 = 0x00;
+		fdcan_filter.FilterID2 = 0x00;
 		HAL_FDCAN_ConfigFilter(&hfdcan1, &fdcan_filter);
 	HAL_FDCAN_ConfigGlobalFilter(&hfdcan1,FDCAN_REJECT,FDCAN_REJECT,FDCAN_REJECT_REMOTE,FDCAN_REJECT_REMOTE);
 	HAL_FDCAN_ConfigFifoWatermark(&hfdcan1, FDCAN_CFG_RX_FIFO0, 1);
 	
  
   
-		HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_2);
+		//HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_2);
 
 		LCD_Init();
 		LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
 
 		LCD_ShowPicture(90, 20, 70, 50, gImage_pic);
-		LCD_ShowChinese(10, 100, (uint8_t *)"小弹丸数量：", WHITE, BLACK, 24, 0);
-		LCD_ShowChinese(10, 150, (uint8_t *)"大弹丸数量：", WHITE, BLACK, 24, 0);
+		LCD_ShowChinese(10, 100, (uint8_t *)gb_label_small, WHITE, BLACK, 24, 0);
+		LCD_ShowChinese(10, 150, (uint8_t *)gb_label_big, WHITE, BLACK, 24, 0);
+		// 初始显示 0
+		LCD_ShowString(180, 100, (uint8_t *)"0", BRRED, BLACK, 24, 0);
+		LCD_ShowString(180, 150, (uint8_t *)"0", BRRED, BLACK, 24, 0);
+
+	// ========== 底盘电机 PID 初始化 ==========
+	Motor_Init();
 
   /* USER CODE END 2 */
 
@@ -267,7 +273,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+#include "Motor.h"
 /* USER CODE END 4 */
 
 /**
@@ -288,7 +294,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+  if (htim->Instance == TIM6) {
+    g_control_tick++;
+    Motor_Control();
+  }
   /* USER CODE END Callback 1 */
 }
 

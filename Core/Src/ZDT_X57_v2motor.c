@@ -16,8 +16,8 @@ static __align(32) uint32_t flash_data_buf[8];
 uint8_t ArmorPlate_Homing(uint8_t ID){
     uint16_t timeout_cnt = 0;
     uint8_t idx = ID - 1;  // 数组索引: 电机1→[0], 电机2→[1]
-    zdt_motor[idx].is_stalled = 1;// 先标记忙，防止其他任务误发位置指令
     osDelay(200); // 等待电机状态更新
+    zdt_motor[idx].is_stalled = 1;// 等待堵转信号 (ISR 会置位对应电机的 is_stalled)
     ZDT_Trigger_Collision_Homing(ID);  // 触发碰撞回正指令
     while (zdt_motor[idx].is_stalled == 1)
     {   
